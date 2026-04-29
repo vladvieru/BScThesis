@@ -1,0 +1,138 @@
+---
+title: "Shapley-Mahalanobis Outlier Experiments"
+output:
+  html_notebook:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 7,
+  fig.height = 4
+)
+
+root <- if (file.exists(file.path("R", "load.R"))) "." else ".."
+root <- normalizePath(root)
+
+source(file.path(root, "R", "load.R"))
+source_project(root)
+
+missing <- check_packages(c("ShapleyOutlier"))
+if (length(missing) > 0) {
+  stop(
+    "Missing required package(s): ",
+    paste(missing, collapse = ", "),
+    ". Run `Rscript scripts/install_packages.R` first."
+  )
+}
+```
+
+## Purpose
+
+This notebook is the thesis-facing layer. The implementation lives in `R/`, while this document defines the experiment, presents the outputs, and records interpretation.
+
+## Simulated Data
+
+```{r simulate}
+sim <- simulate_shapley_experiment(
+  n = 150,
+  p = 6,
+  rho = 0.55,
+  row_fraction = 0.06,
+  cell_fraction = 0.03,
+  magnitude = 6,
+  seed = 2026
+)
+
+dim(sim$x)
+sum(sim$truth$row_outlier)
+sum(sim$truth$cell_outlier)
+```
+
+## Original Method
+
+```{r original-method}
+original <- run_shapley_original(
+  sim$x,
+  estimator = "classical",
+  q = 0.99,
+  method_label = "Original: classical covariance"
+)
+
+original
+```
+
+```{r original-plots}
+plot_md_scores(original)
+plot_observation_contributions(original)
+plot_shapley_heatmap(original)
+```
+
+## Extension Methods
+
+```{r robust-extension}
+results <- list(original_classical = original)
+
+if (requireNamespace("robustbase", quietly = TRUE)) {
+  results$extension_mcd <- run_robust_shapley(
+    sim$x,
+    estimator = "mcd",
+    q = 0.99,
+    method_label = "Extension: robust MCD covariance"
+  )
+
+  results$extension_ogk <- run_robust_shapley(
+    sim$x,
+    estimator = "ogk",
+    q = 0.99,
+    method_label = "Extension: robust OGK covariance"
+  )
+}
+
+lapply(results, print)
+```
+
+```{r interaction-extension}
+interaction <- run_interaction_extension(sim$x, estimator = "classical")
+interaction$observation
+round(interaction$interaction, 3)
+```
+
+```{r grouped-contributions}
+groups <- c(V1 = "group_a", V2 = "group_a", V3 = "group_b", V4 = "group_b", V5 = "group_c", V6 = "group_c")
+group_phi <- summarise_group_contributions(original$phi, groups)
+head(group_phi)
+```
+
+## Evaluation
+
+```{r evaluation}
+metrics <- compare_methods(results, sim$truth)
+metrics
+```
+
+```{r evaluation-plots}
+plot_method_comparison(metrics, metric = "f1", scope = "row")
+plot_method_comparison(metrics, metric = "f1", scope = "cell")
+```
+
+## Save Outputs
+
+```{r save-outputs}
+dir.create(file.path(root, "outputs", "tables"), recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(root, "outputs", "figures"), recursive = TRUE, showWarnings = FALSE)
+
+write.csv(
+  metrics,
+  file.path(root, "outputs", "tables", "notebook_metrics.csv"),
+  row.names = FALSE
+)
+
+saveRDS(
+  list(simulation = sim, results = results, metrics = metrics),
+  file.path(root, "outputs", "notebook_run.rds")
+)
+```

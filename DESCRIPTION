@@ -1,0 +1,13 @@
+Package: BScThesis
+Type: Project
+Title: Shapley-Mahalanobis Outlier Detection Experiments
+Version: 0.0.1
+Authors@R: person("Vlad", "Vieru", role = c("aut", "cre"))
+Description: Research code for experiments based on Shapley-Mahalanobis outlier explanations.
+Encoding: UTF-8
+Imports:
+    ShapleyOutlier,
+    ggplot2,
+    robustbase,
+    rmarkdown,
+    knitr
